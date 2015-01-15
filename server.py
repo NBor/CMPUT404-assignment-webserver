@@ -1,14 +1,14 @@
-import SocketServer
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-# Copyright 2013 Abram Hindle, Eddie Antonio Santos
-# 
+# Copyright 2013 Abram Hindle, Eddie Antonio Santos, Neil Borle
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,14 +25,91 @@ import SocketServer
 # run: python freetests.py
 
 # try: curl -v -X GET http://127.0.0.1:8080/
+import os
+import re
+import SocketServer
+
+
+def read_resource(path):
+    """ Return the content of a resource.
+
+    Data from the resource will be returned as a string. If the resource does
+    not exist or cannot be opened, None is returned instead.
+
+    :param path: path to the resource from the CWD.
+    :type path: str
+
+    :returns: str or None
+    """
+    try:
+        with open(path) as fh:
+            content = fh.read()
+        return content
+    except IOError:
+        return None
 
 
 class MyWebServer(SocketServer.BaseRequestHandler):
-    
+
+    """A simple webserver that handles GET requests."""
+
+    def __init__(self, *args, **kwargs):
+        self._baseurl = './www'
+        self.headers = {'html': 'HTTP/1.1 200 OK\nContent-Type: text/html\n\n',
+                        'css': 'HTTP/1.1 200 OK\nContent-Type: text/css\n\n'}
+        return SocketServer.BaseRequestHandler.__init__(self, *args, **kwargs)
+
+    def clean_path(self, path):
+        """Clean path for security reasons.
+
+        If the path has one or more leading '/..' strings, remove them.
+
+        :param path: path to the resource from the CWD.
+        :type path: str
+
+        :returns: str
+        """
+        return re.sub(r'^\.?(\/\.\.)+', '', path)
+
+    def get(self, data):
+        """Handle a GET request with a response.
+
+        This method extracts the path provided in the request, cleans it, and
+        checks if it exists. If the resource is accessible it will be opened
+        and sent back with an appropriate header.
+
+        :param data: the content of the GET request
+        :type data: str
+
+        :returns: (str) an appropriate response
+
+        """
+        sub_path = self.clean_path(data.split(' ')[1])
+        path = self._baseurl + sub_path
+        if path.endswith('/'):
+            path += 'index.html'
+        elif os.path.isdir(path):
+            return ('HTTP/1.1 302 Found\n'
+                    'Location: http://127.0.0.1:8080%s/\n\n' % sub_path)
+
+        resource_content = read_resource(path)
+        if resource_content is None:
+            return 'HTTP/1.1 404\n\n404 file not found'
+
+        for content_type in self.headers:
+            if path.endswith('.' + content_type):
+                header = self.headers[content_type]
+                return header + resource_content
+
     def handle(self):
+        """Read in a request, handle it if it is a GET."""
         self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
-        self.request.sendall("OK")
+        operation = self.data.split(' ')[0]
+
+        #print ("Got a request of: %s\n" % self.data)
+        if operation in ['GET']:
+            response = getattr(self, operation.lower())(self.data)
+            self.request.sendall(response)
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
