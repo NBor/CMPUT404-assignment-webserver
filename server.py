@@ -55,8 +55,10 @@ class MyWebServer(SocketServer.BaseRequestHandler):
 
     def __init__(self, *args, **kwargs):
         self._baseurl = './www'
-        self.headers = {'html': 'HTTP/1.1 200 OK\nContent-Type: text/html\n\n',
-                        'css': 'HTTP/1.1 200 OK\nContent-Type: text/css\n\n'}
+        self.headers = {'html': ('HTTP/1.1 200 OK\r\n'
+                                 'Content-Type: text/html\r\n\r\n'),
+                        'css': ('HTTP/1.1 200 OK\r\n'
+                                'Content-Type: text/css\r\n\r\n')}
         return SocketServer.BaseRequestHandler.__init__(self, *args, **kwargs)
 
     def clean_path(self, path):
@@ -89,12 +91,12 @@ class MyWebServer(SocketServer.BaseRequestHandler):
         if path.endswith('/'):
             path += 'index.html'
         elif os.path.isdir(path):
-            return ('HTTP/1.1 302 Found\n'
-                    'Location: http://127.0.0.1:8080%s/\n\n' % sub_path)
+            return ('HTTP/1.1 302 Found\r\n'
+                    'Location: http://127.0.0.1:8080%s/\r\n\r\n' % sub_path)
 
         resource_content = read_resource(path)
         if resource_content is None:
-            return 'HTTP/1.1 404\n\n404 file not found'
+            return 'HTTP/1.1 404\r\n\r\n404 file not found'
 
         for content_type in self.headers:
             if path.endswith('.' + content_type):
